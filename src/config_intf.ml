@@ -7,6 +7,7 @@ module type Incremental_config = sig
       easily used with this version of Incremental.  Except in that situation, one
       should leave this as true, and that is what [Default] does. *)
   val bind_lhs_change_should_invalidate_rhs : bool
+  val on_dirty_callback : unit -> unit
 end
 
 module type Config = sig

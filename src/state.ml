@@ -58,6 +58,7 @@ type t = Types.State.t =
        stabilization. *)
     mutable stabilization_num : Stabilization_num.t
   ; mutable current_scope : Scope.t
+  ; on_dirty_callback : unit -> unit
   ; recompute_heap : Recompute_heap.t
   ; adjust_heights_heap : Adjust_heights_heap.t
   ; (* [propagate_invalidity] holds nodes that have invalid children that should be
@@ -256,6 +257,7 @@ let invariant t =
       Fields.iter
         ~status:ignore
         ~bind_lhs_change_should_invalidate_rhs:ignore
+        ~on_dirty_callback:ignore
         ~stabilization_num:(check Stabilization_num.invariant)
         ~current_scope:
           (check (fun current_scope -> assert (phys_equal current_scope Scope.top)))
@@ -534,7 +536,11 @@ let propagate_invalidity t =
            true, and because computing it takes O(number of children), node can be pushed
            on the stack once per child, and expert nodes can have lots of children. *)
         if not (Node.is_in_recompute_heap node)
-        then Recompute_heap.add t.recompute_heap node)
+        then (
+            Recompute_heap.add t.recompute_heap node;
+            t.on_dirty_callback()
+        )
+      )
   done
 ;;
 
@@ -587,7 +593,7 @@ and became_necessary : type a. a Node.t -> unit =
      is necessary, we should add it to the recompute heap iff it is stale. *)
   if debug then assert (not (Node.is_in_recompute_heap node));
   if debug then assert (Node.is_necessary node);
-  if Node.is_stale node then Recompute_heap.add t.recompute_heap node;
+  if Node.is_stale node then (Recompute_heap.add t.recompute_heap node; t.on_dirty_callback());
   match node.kind with
   | Expert p -> Expert.observability_change p ~is_now_observable:true
   | _ -> ()
@@ -623,7 +629,7 @@ let add_parent ~child ~parent ~child_index =
     (not (Node.is_in_recompute_heap parent))
     && (Stabilization_num.is_none parent.recomputed_at
         || Node.edge_is_stale ~child ~parent)
-  then Recompute_heap.add t.recompute_heap parent
+  then (Recompute_heap.add t.recompute_heap parent; t.on_dirty_callback())
 ;;
 
 let run_with_scope t scope ~f =
@@ -1047,7 +1053,7 @@ and maybe_change_value : type a. a Node.t -> a -> unit =
            incremental would segfault (there may be a less naive way of making this work
            though). *)
         if not (Node.is_in_recompute_heap parent)
-        then Recompute_heap.add t.recompute_heap parent
+        then (Recompute_heap.add t.recompute_heap parent; t.on_dirty_callback())
       done;
       let (T parent) = Uopt.value_exn node.parent0 in
       (match parent.kind with
@@ -1127,7 +1133,7 @@ and maybe_change_value : type a. a Node.t -> a -> unit =
         else (
           if debug then assert (Node.needs_to_be_computed parent);
           if debug then assert (not (Node.is_in_recompute_heap parent));
-          Recompute_heap.add t.recompute_heap parent))));
+          (Recompute_heap.add t.recompute_heap parent; t.on_dirty_callback())))));
   if debug then invariant t
 ;;
 
@@ -1292,7 +1298,7 @@ let set_var_while_not_stabilizing var value =
     let watch = var.watch in
     if debug then assert (Node.is_stale watch);
     if Node.is_necessary watch && not (Node.is_in_recompute_heap watch)
-    then Recompute_heap.add t.recompute_heap watch)
+    then (Recompute_heap.add t.recompute_heap watch; t.on_dirty_callback()))
 ;;
 
 let set_var var value =
@@ -1858,7 +1864,7 @@ let make_stale (node : _ Node.t) =
   node.recomputed_at <- Stabilization_num.none;
   (* force the node to be stale *)
   if Node.needs_to_be_computed node && not (Node.is_in_recompute_heap node)
-  then Recompute_heap.add t.recompute_heap node
+  then (Recompute_heap.add t.recompute_heap node; t.on_dirty_callback())
 ;;
 
 let advance_clock (clock : Clock.t) ~to_ =
@@ -1920,6 +1926,7 @@ let create (module Config : Config.Incremental_config) ~max_height_allowed =
   let t =
     { status = Not_stabilizing
     ; bind_lhs_change_should_invalidate_rhs = Config.bind_lhs_change_should_invalidate_rhs
+    ; on_dirty_callback = Config.on_dirty_callback
     ; stabilization_num = Stabilization_num.zero
     ; current_scope = Scope.top
     ; adjust_heights_heap
@@ -2037,7 +2044,7 @@ module Expert = struct
       | `Already_stale -> ()
       | `Ok ->
         if Node.is_necessary node && not (Node.is_in_recompute_heap node)
-        then Recompute_heap.add state.recompute_heap node)
+        then (Recompute_heap.add state.recompute_heap node; state.on_dirty_callback()))
   ;;
 
   let invalidate (node : _ Node.t) =
@@ -2072,7 +2079,7 @@ module Expert = struct
         add_parent ~child:dep.child ~parent:node ~child_index:new_child_index;
         if debug then assert (Node.needs_to_be_computed node);
         if not (Node.is_in_recompute_heap node)
-        then Recompute_heap.add state.recompute_heap node))
+        then (Recompute_heap.add state.recompute_heap node; state.on_dirty_callback())))
   ;;
 
   let remove_dependency (node : _ Node.t) (edge : _ Expert.edge) =
@@ -2105,7 +2112,7 @@ module Expert = struct
       then (
         remove_child ~child:edge.child ~parent:node ~child_index:last_edge_index;
         if not (Node.is_in_recompute_heap node)
-        then Recompute_heap.add state.recompute_heap node;
+        then (Recompute_heap.add state.recompute_heap node; state.on_dirty_callback());
         if not (Node.is_valid edge.child) then Expert.decr_invalid_children e))
   ;;
 end

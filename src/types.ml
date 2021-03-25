@@ -578,6 +578,7 @@ and State : sig
     ; bind_lhs_change_should_invalidate_rhs : bool
     ; mutable stabilization_num : Stabilization_num.t
     ; mutable current_scope : Scope.t
+    ; on_dirty_callback : unit -> unit
     ; recompute_heap : Recompute_heap.t
     ; adjust_heights_heap : Adjust_heights_heap.t
     ; propagate_invalidity : Node.Packed.t Stack.t
