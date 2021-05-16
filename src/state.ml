@@ -1012,6 +1012,7 @@ and maybe_change_value : type a. a Node.t -> a -> unit =
             ~old_value:(Uopt.unsafe_value old_value_opt)
             ~new_value)
   then (
+    t.on_dirty_callback();
     node.value_opt <- Uopt.some new_value;
     node.changed_at <- t.stabilization_num;
     t.num_nodes_changed <- t.num_nodes_changed + 1;
@@ -1133,7 +1134,7 @@ and maybe_change_value : type a. a Node.t -> a -> unit =
         else (
           if debug then assert (Node.needs_to_be_computed parent);
           if debug then assert (not (Node.is_in_recompute_heap parent));
-          (Recompute_heap.add t.recompute_heap parent; t.on_dirty_callback())))));
+          (Recompute_heap.add t.recompute_heap parent; )))));
   if debug then invariant t
 ;;
 
