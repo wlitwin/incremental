@@ -202,6 +202,7 @@ module Generic = struct
     let advance_clock = State.advance_clock
     let advance_clock_by t span = advance_clock t ~to_:(Time_ns.add (now t) span)
     let incremental_step_function = State.incremental_step_function
+    let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.timing_wheel
 
     let step_function t ~init steps =
       incremental_step_function

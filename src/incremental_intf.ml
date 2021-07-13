@@ -976,6 +976,7 @@ module type S_gen = sig
     val at_intervals : t -> Time_ns.Span.t -> unit incremental
     val step_function : t -> init:'a -> (Time_ns.t * 'a) list -> 'a incremental
     val incremental_step_function : t -> 'a Step_function.t incremental -> 'a incremental
+    val next_alarm_fires_at : t -> Time_ns.t option
 
     val snapshot
       :  t
@@ -1783,6 +1784,8 @@ module type Incremental = sig
         set.  The result of [at_intervals] remains alive and is updated until the
         left-hand side of its defining bind changes, at which point it becomes invalid. *)
     val at_intervals : 'w t -> Time_ns.Span.t -> (unit, 'w) incremental
+
+    val next_alarm_fires_at : 'w t -> Time_ns.t option
 
     (** [step_function t ~init [(t1, v1); ...; (tn, vn)]] returns an incremental whose
         initial value is [init] and takes on the values [v1], ..., [vn] in sequence taking
